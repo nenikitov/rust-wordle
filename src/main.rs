@@ -16,5 +16,5 @@ fn main() {
         words::write_into(PATH_WORDS_FILE, &words);
     }
     let words = words::read_from("res/words_filtered.txt");
-    let game = wordle::WordleGame::new(&words);
+    let game = wordle::WordleGame::new(words);
 }

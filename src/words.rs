@@ -53,7 +53,7 @@ fn is_a_valid_word(word: &String) -> bool {
     }
 }
 
-fn count_all(word: &String, set: &str) -> usize {
+pub fn count_all(word: &String, set: &str) -> usize {
     word.chars().filter(|char| {
         set.contains(*char)
     }).count()
