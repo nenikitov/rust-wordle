@@ -1,20 +1,32 @@
-use std::path::Path;
+use std::{path::Path, process::exit};
 
-mod words;
+use args::Args;
+
+mod args;
 mod wordle;
-
-
-const PATH_ALL_WORDS_FILE: &str = "res/words_alpha.txt";
-const PATH_WORDS_FILE: &str = "res/words_filtered.txt";
+mod words;
 
 
 fn main() {
-    if !Path::new(PATH_WORDS_FILE).exists() {
-        println!("Game can't find the words file, generating new");
-        let words = words::read_from(PATH_ALL_WORDS_FILE);
-        let words = words::filter(words);
-        words::write_into(PATH_WORDS_FILE, &words);
+    // Parse arguments
+    let args = Args::new();
+
+    if args.help() {
+        println!("{}", Args::HELP_MESSAGE);
+        return;
     }
-    let words = words::read_from("res/words_filtered.txt");
+    let words =
+        if let Some(words) = args.word_list() {
+            match words::read_from(words) {
+                Ok(words) => words,
+                Err(error) => {
+                            println!("{error}");
+                            exit(1);
+                        }
+            }
+        } else { 
+            words::default_words()
+        };
+    println!("{}", words.len());
     let game = wordle::WordleGame::new(words);
 }

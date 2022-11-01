@@ -3,53 +3,44 @@ use std::{
     io::{
         BufReader,
         BufRead,
-        self,
-        BufWriter,
-        Write
-    }
+        self
+    }, fmt::Display
 };
 
-
-const VOWELS: &str = "aeiouy";
-const CONSONANTS: &str = "bcdfghjklmnpqrstvwxz";
-
-
-pub fn write_into(file_name: &str, words: &Vec<String>) {
-    let file = File::create(file_name).expect("File not found");
-    let mut writer = BufWriter::new(file);
-    writer.write_all(words.join("\n").as_bytes()).expect("File could not be written");
+pub enum WordIoError {
+    NoFile,
+    InvalidFormat
 }
 
-pub fn read_from(file_name: &str) -> Vec<String> {
-    let file = File::open(file_name).expect("File not found");
-    let reader = BufReader::new(file);
-    reader.lines()
-        .filter_map(io::Result::ok)
-        .collect()
+impl Display for WordIoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoFile => write!(f, "Specified file cannot be read/does not exist"),
+            Self::InvalidFormat => write!(f, "Word list format is improperly formatted"),
+        }
+    }
 }
 
-pub fn filter(words: Vec<String>) -> Vec<String> {
-    words
-        .into_iter()
-        .filter(is_a_valid_word)
-        .collect()
+
+pub fn default_words() -> Vec<String> {
+    include_str!("../res/word_list.txt").split("\n").map(|s| s.into()).collect()
 }
 
-fn is_a_valid_word(word: &String) -> bool {
-    let len = word.len();
-    if (4..8).contains(&len) {
-        let consecutive_vowels = count_consecutive(word, VOWELS);
-        let consecutive_consonants = count_consecutive(word, CONSONANTS);
-        let percent_vowels = count_all(word, VOWELS) as f64 / len as f64;
-        let percent_consonants = count_all(word, CONSONANTS) as f64 / len as f64;
-
-        consecutive_consonants <= 4
-            && consecutive_vowels <= 2
-            && percent_vowels <= 0.9
-            && percent_consonants <= 0.9
+pub fn read_from(file_name: &str) -> Result<Vec<String>, WordIoError> {
+    if let Ok(file) = File::open(file_name) {
+        let reader = BufReader::new(file);
+        let words: Vec<String> = reader.lines()
+            .filter_map(io::Result::ok)
+            .collect();
+        if words.len() == 0 {
+            Err(WordIoError::InvalidFormat)
+        }
+        else {
+            Ok(words)
+        }
     }
     else {
-        false
+        Err(WordIoError::NoFile)
     }
 }
 
@@ -57,20 +48,4 @@ pub fn count_all(word: &String, set: &str) -> usize {
     word.chars().filter(|char| {
         set.contains(*char)
     }).count()
-}
-
-fn count_consecutive(word: &String, set: &str) -> usize {
-    let mut max: usize = 0;
-    let mut current: usize = 0;
-
-    for char in word.chars() {
-        if set.contains(char) {
-            current += 1;
-        }
-        else if current > max {
-            max = current;
-            current = 0;
-        }
-    }
-    max
 }
