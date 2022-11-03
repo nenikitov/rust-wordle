@@ -1,32 +1,90 @@
-use std::{path::Path, process::exit};
+use std::{process::exit, iter::repeat, io};
+use colored::{Colorize, Color};
 
 use args::Args;
 
 mod args;
 mod wordle;
 mod words;
+mod tests;
 
 
 fn main() {
-    // Parse arguments
     let args = Args::new();
 
     if args.help() {
+        // Help screen
         println!("{}", Args::HELP_MESSAGE);
         return;
     }
-    let words =
-        if let Some(words) = args.word_list() {
-            match words::read_from(words) {
-                Ok(words) => words,
-                Err(error) => {
-                            println!("{error}");
-                            exit(1);
-                        }
+    else {
+        // Word screen
+        // Word list
+        let words =
+            if let Some(words) = args.word_list() {
+                match words::read_from(words) {
+                    Ok(words) => words,
+                    Err(error) => {
+                        println!("{error}");
+                        exit(1);
+                    }
+                }
+            } else { 
+                words::default_words()
+            };
+        // Initialize game
+        let game = wordle::WordleGame::new(words);
+        let mut score = game.guess_empty();
+        let mut guess: String =
+            repeat("_")
+            .take(score.len())
+            .collect();
+
+        //#region Welcome message
+        println!(
+            "=== Welcome to {}{}{}{}{}{} ===",
+            "R".green().on_black(),
+            "U".bright_black().on_black(),
+            "S".yellow().on_black(),
+            "T".bright_black().on_black(),
+            "L".green().on_black(),
+            "E".yellow().on_black(),
+        );
+        //#endregion
+
+        //#region Game loop
+        loop {
+            // Print previous guess
+            for (c, s) in guess.chars().zip(score.iter()) {
+                let colored =
+                    String::from(c)
+                    .on_black()
+                    .color(match s {
+                        wordle::LetterScore::Wrong => Color::BrightBlack,
+                        wordle::LetterScore::Present => Color::Yellow,
+                        wordle::LetterScore::Correct => Color::Green
+                    });
+                print!("{}", colored);
             }
-        } else { 
-            words::default_words()
-        };
-    println!("{}", words.len());
-    let game = wordle::WordleGame::new(words);
+            println!();
+            // Read input
+            let previous_guess = guess.clone();
+            guess.clear();
+            io::stdin()
+                .read_line(&mut guess)
+                .expect("Terminal does not support input");
+            guess = String::from(guess.trim());
+            score = match game.guess(&guess) {
+                Ok(s) => s,
+                Err(e) => {
+                    println!("{}", e.to_string().red());
+                    guess = previous_guess;
+                    continue;
+                }
+            };
+        }
+        //#endregion
+
+        // End screen
+    }
 }

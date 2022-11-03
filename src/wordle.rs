@@ -1,8 +1,12 @@
+use std::{fmt::Display, iter::repeat};
+
 use rand::seq::SliceRandom;
 
 use crate::words::count_all;
 
+#[derive(Clone)]
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub enum LetterScore {
     Wrong,
     Present,
@@ -15,11 +19,20 @@ pub enum InvalidWord {
     NotAWord
 }
 
+impl Display for InvalidWord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DifferentLength => write!(f, "Input should be the same length as the word"),
+            Self::NotAWord => write!(f, "This word is not in a dictionary"),
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub struct WordleGame {
     words: Vec<String>,
-    word: String
+    answer: String
 }
 
 impl WordleGame {
@@ -31,48 +44,58 @@ impl WordleGame {
             else {
                 String::from("demo")
             };
-        Self { words, word }
+        Self { words, answer: word }
+    }
+
+    pub fn new_with_answer(words: Vec<String>, answer: String) -> Self {
+        if !words.contains(&answer) {
+            panic!("Word list should contain the target word");
+        }
+        else {
+            Self { words, answer }
+        }
     }
 
     pub fn guess(&self, guess: &String) -> Result<Vec<LetterScore>, InvalidWord> {
-        if guess.len() != self.word.len() {
+        if guess.len() != self.answer.len() {
             Err(InvalidWord::DifferentLength)
         }
         else if !self.words.contains(guess) {
-            println!("{:?}", self.words);
             Err(InvalidWord::NotAWord)
         }
         else {
-            Ok(
-                guess
-                    .char_indices()
-                    .map(|(i, _)| self.guess_for_current_char(i, guess))
-                    .collect()
-            )
+            let mut answer = self.answer.clone();
+            // Initialize all wrong
+            let mut score: Vec<LetterScore> = repeat(LetterScore::Wrong).take(guess.len()).collect();
+            // Find the letter that are correct
+            //for (letter_guess, letter_word) in guess.chars().zip(word.chars()) {}
+            for i in 0..answer.len() {
+                let char_answer = answer.chars().nth(i).unwrap();
+                let char_guess = guess.chars().nth(i).unwrap();
+                if char_guess == char_answer {
+                    // Character matched, score and replace to not score again
+                    score[i] = LetterScore::Correct;
+                    answer = answer.replacen(char_guess, ":", 1);
+                }
+            }
+            // Find the letters that are present
+            for i in 0..answer.len() {
+                let char_guess = guess.chars().nth(i).unwrap();
+                if score[i] != LetterScore::Correct && answer.contains(char_guess) {
+                    // Character matched, score and replace to not score again
+                    score[i] = LetterScore::Present;
+                    answer = answer.replacen(char_guess, ":", 1);
+                }
+            }
+
+            Ok(score)
         }
     }
 
-    fn guess_for_current_char(&self, i: usize, guess: &String) -> LetterScore {
-        let char_guess = guess.chars().nth(i).unwrap();
-        let char_word = self.word.chars().nth(i).unwrap();
-
-        let previous_guesses = String::from(&guess[..=i]);
-        let char_guess_set = String::from(char_guess);
-
-        let guesses_in_word = count_all(&self.word, &char_guess_set);
-        let guesses_in_previous_guess = count_all(&previous_guesses, &char_guess_set);
-
-        if char_guess == char_word {
-            // Same character on the same position - correct
-            LetterScore::Correct
-        }
-        else if guesses_in_word != 0 && guesses_in_previous_guess <= guesses_in_word {
-            // 
-            LetterScore::Present
-        }
-        else {
-            // Other checks failed - wrong
-            LetterScore::Wrong
-        }
+    pub fn guess_empty(&self) -> Vec<LetterScore> {
+        self.answer
+            .chars()
+            .map(|_| LetterScore::Wrong)
+            .collect()
     }
 }
