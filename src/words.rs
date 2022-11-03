@@ -4,48 +4,166 @@ use std::{
         BufReader,
         BufRead,
         self
-    }, fmt::Display
+    }, fmt::{Display} ,ops::RangeInclusive
 };
+use regex::Regex;
 
-pub enum WordIoError {
-    NoFile,
-    InvalidFormat
+
+type Words = Vec<String>;
+type WordErrors = Vec<WordError>;
+type InvalidWords = Vec<InvalidWord>;
+
+#[derive(Debug)]
+pub struct InvalidWord {
+    pub pos: usize,
+    pub word: String,
+    pub errors: WordErrors
 }
 
-impl Display for WordIoError {
+impl Display for InvalidWord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f, "- '{}' at index {}:\n{}",
+            self.word,
+            self.pos,
+            self.errors
+                .iter()
+                .map(
+                    |e|
+                    format!("    - {}", e)
+                ).collect::<Words>()
+                .join("\n")
+        )
+    }
+}
+
+
+#[derive(Debug)]
+pub enum WordListError {
+    NoFile,
+    Empty,
+    InvalidWords {
+        words: InvalidWords
+    }
+}
+
+impl Display for WordListError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoFile => write!(f, "Specified file cannot be read/does not exist"),
-            Self::InvalidFormat => write!(f, "Word list format is improperly formatted"),
+            Self::Empty => write!(f, "Word list format is improperly formatted"),
+            Self::InvalidWords { words } => write!(f, "Some words have errors:\n{}", words.iter().map(|w| w.to_string()).collect::<Words>().join("\n"))
         }
     }
 }
 
 
-pub fn default_words() -> Vec<String> {
+
+#[derive(Debug)]
+pub enum WordError {
+    InvalidCharacter {
+        pos: usize,
+        char: char
+    },
+    InvalidLength {
+        len: usize
+    },
+}
+
+impl Display for WordError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WordError::InvalidCharacter {pos, char} => write!(f, "Invalid character '{char}' at index {pos}"),
+            WordError::InvalidLength {len} => write!(
+                f, "Length of {len}, it should be between {} and {}",
+                WORD_RANGE.min().unwrap(),
+                WORD_RANGE.max().unwrap()
+            )
+        }
+    }
+}
+
+
+
+pub fn default_words() -> Words {
     include_str!("../res/word_list.txt").split("\n").map(|s| s.into()).collect()
 }
 
-pub fn read_from(file_name: &str) -> Result<Vec<String>, WordIoError> {
+pub fn read_from(file_name: &str) -> Result<Words, (Words, WordListError)> {
     if let Ok(file) = File::open(file_name) {
         let reader = BufReader::new(file);
         let words: Vec<String> = reader.lines()
             .filter_map(io::Result::ok)
             .collect();
         if words.len() == 0 {
-            Err(WordIoError::InvalidFormat)
+            Err((vec![], WordListError::Empty))
         }
         else {
-            Ok(words)
+            let words = validate_list(&words.iter().map(|s| s.as_ref()).collect());
+            match words {
+                Ok(words)
+                    => Ok(words),
+                Err((words, invalid))
+                    => Err((words, WordListError::InvalidWords { words: invalid }))
+            }
         }
     }
     else {
-        Err(WordIoError::NoFile)
+        Err((vec![], WordListError::NoFile))
     }
 }
 
-pub fn count_all(word: &String, set: &str) -> usize {
-    word.chars().filter(|char| {
-        set.contains(*char)
-    }).count()
+const WORD_RANGE: RangeInclusive<usize> = 3..=7;
+const INVALID_CHARS: &str = r"[^a-z]";
+
+
+pub fn validate_list(words: &Vec<&str>) -> Result<Words, (Words, InvalidWords)> {
+    let mut valid: Words = Vec::new();
+    let mut invalid: InvalidWords = Vec::new();
+    for (pos, word) in words.iter().enumerate() {
+        match validate_word(&word) {
+            Ok(validated)
+                => valid.push(validated),
+            Err(errors)
+                => invalid.push(InvalidWord {
+                    pos,
+                    word: word.to_string(),
+                    errors
+                })
+        }
+    }
+
+    if invalid.len() == 0 {
+        Ok(valid)
+    }
+    else {
+        Err((valid, invalid))
+    }
+}
+
+
+pub fn validate_word(word: &str) -> Result<String, WordErrors> {
+    let regex = Regex::new(INVALID_CHARS).unwrap();
+    let word = word.to_lowercase();
+
+    let mut errors: Vec<WordError> = Vec::new();
+
+    if !WORD_RANGE.contains(&word.len()) {
+        errors.push(WordError::InvalidLength{
+            len: word.len()
+        });
+    }
+    for regex_match in regex.find_iter(&word) {
+        errors.push(WordError::InvalidCharacter{
+            pos: regex_match.start(),
+            char: regex_match.as_str().chars().nth(0).unwrap()
+        });
+    }
+
+    if errors.len() != 0 {
+        Err(errors)
+    }
+    else {
+        Ok(word)
+    }
 }

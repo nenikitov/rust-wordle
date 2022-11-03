@@ -2,8 +2,6 @@ use std::{fmt::Display, iter::repeat};
 
 use rand::seq::SliceRandom;
 
-use crate::words::count_all;
-
 #[derive(Clone)]
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -12,6 +10,7 @@ pub enum LetterScore {
     Present,
     Correct
 }
+
 
 #[derive(Debug)]
 pub enum InvalidWord {

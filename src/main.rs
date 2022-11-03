@@ -2,6 +2,7 @@ use std::{process::exit, iter::repeat, io};
 use colored::{Colorize, Color};
 
 use args::Args;
+use words::validate_word;
 
 mod args;
 mod wordle;
@@ -10,6 +11,19 @@ mod tests;
 
 
 fn main() {
+    let validated = words::read_from("res/test.txt");
+    println!("{:}", validated.unwrap_err().1);
+
+    /*
+    println!(
+        "{}",
+        match words::validate_list() {
+            Ok(words) => todo!(),
+            Err((words, filtered)) => todo!(),
+        }
+    );
+    */
+    /*
     let args = Args::new();
 
     if args.help() {
@@ -87,4 +101,5 @@ fn main() {
 
         // End screen
     }
+    */
 }
