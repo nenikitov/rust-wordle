@@ -6,7 +6,7 @@ use std::{
         self
     }, fmt::{Display} ,ops::RangeInclusive
 };
-use regex::Regex;
+
 
 
 type Words = Vec<String>;
@@ -50,7 +50,7 @@ pub enum WordListError {
 impl Display for WordListError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NoFile => write!(f, "Specified file cannot be read/does not exist"),
+            Self::NoFile => write!(f, "File cannot be read/does not exist"),
             Self::Empty => write!(f, "Word list format is improperly formatted"),
             Self::InvalidWords { words } => write!(f, "Some words have errors:\n{}", words.iter().map(|w| w.to_string()).collect::<Words>().join("\n"))
         }
@@ -99,7 +99,8 @@ pub fn read_from(file_name: &str) -> Result<Words, (Words, WordListError)> {
             Err((vec![], WordListError::Empty))
         }
         else {
-            let words = validate_list(&words.iter().map(|s| s.as_ref()).collect());
+            let words = &words.iter().map(|s| s.as_ref()).collect();
+            let words = validate_list(words);
             match words {
                 Ok(words)
                     => Ok(words),
@@ -114,7 +115,6 @@ pub fn read_from(file_name: &str) -> Result<Words, (Words, WordListError)> {
 }
 
 const WORD_RANGE: RangeInclusive<usize> = 3..=7;
-const INVALID_CHARS: &str = r"[^a-z]";
 
 
 pub fn validate_list(words: &Vec<&str>) -> Result<Words, (Words, InvalidWords)> {
@@ -143,7 +143,6 @@ pub fn validate_list(words: &Vec<&str>) -> Result<Words, (Words, InvalidWords)> 
 
 
 pub fn validate_word(word: &str) -> Result<String, WordErrors> {
-    let regex = Regex::new(INVALID_CHARS).unwrap();
     let word = word.to_lowercase();
 
     let mut errors: Vec<WordError> = Vec::new();
@@ -153,11 +152,12 @@ pub fn validate_word(word: &str) -> Result<String, WordErrors> {
             len: word.len()
         });
     }
-    for regex_match in regex.find_iter(&word) {
-        errors.push(WordError::InvalidCharacter{
-            pos: regex_match.start(),
-            char: regex_match.as_str().chars().nth(0).unwrap()
-        });
+    for (pos, char) in word.chars().enumerate() {
+        if !char.is_alphabetic() {
+            errors.push(WordError::InvalidCharacter{
+                pos, char
+            });
+        }
     }
 
     if errors.len() != 0 {

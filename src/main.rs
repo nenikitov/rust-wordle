@@ -11,8 +11,8 @@ mod tests;
 
 
 fn main() {
-    let validated = words::read_from("res/test.txt");
-    println!("{:}", validated.unwrap_err().1);
+    let validated = words::read_from("res/word_list.txt");
+    println!("{}", validated.unwrap_err().1);
 
     /*
     println!(
