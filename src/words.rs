@@ -4,7 +4,7 @@ use std::{
         BufReader,
         BufRead,
         self
-    }, fmt::{Display} ,ops::RangeInclusive
+    }, fmt::{Display} ,ops::{RangeInclusive, Deref}, borrow::Borrow
 };
 
 
@@ -52,7 +52,14 @@ impl Display for WordListError {
         match self {
             Self::NoFile => write!(f, "File cannot be read/does not exist"),
             Self::Empty => write!(f, "Word list format is improperly formatted"),
-            Self::InvalidWords { words } => write!(f, "Some words have errors:\n{}", words.iter().map(|w| w.to_string()).collect::<Words>().join("\n"))
+            Self::InvalidWords { words } => write!(
+                f, "Some words have errors:\n{}",
+                words
+                    .iter()
+                    .map(InvalidWord::to_string)
+                    .collect::<Words>()
+                    .join("\n")
+            )
         }
     }
 }
@@ -133,11 +140,11 @@ pub fn validate_list(words: &Vec<&str>) -> Result<Words, (Words, InvalidWords)> 
         }
     }
 
-    if invalid.len() == 0 {
-        Ok(valid)
+    if invalid.len() > 0 {
+        Err((valid, invalid))
     }
     else {
-        Err((valid, invalid))
+        Ok(valid)
     }
 }
 
@@ -160,7 +167,7 @@ pub fn validate_word(word: &str) -> Result<String, WordErrors> {
         }
     }
 
-    if errors.len() != 0 {
+    if errors.len() > 0 {
         Err(errors)
     }
     else {

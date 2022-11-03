@@ -1,29 +1,27 @@
-use std::{process::exit, iter::repeat, io};
-use colored::{Colorize, Color};
-
-use args::Args;
-use words::validate_word;
-
 mod args;
 mod wordle;
 mod words;
 mod tests;
 
 
-fn main() {
-    let validated = words::read_from("res/word_list.txt");
-    println!("{}", validated.unwrap_err().1);
 
-    /*
-    println!(
-        "{}",
-        match words::validate_list() {
-            Ok(words) => todo!(),
-            Err((words, filtered)) => todo!(),
-        }
-    );
-    */
-    /*
+use std::{
+    process::exit,
+    iter::repeat,
+    io
+};
+
+use colored::{
+    Colorize,
+    Color
+};
+
+use args::Args;
+
+
+
+
+fn main() {
     let args = Args::new();
 
     if args.help() {
@@ -38,9 +36,16 @@ fn main() {
             if let Some(words) = args.word_list() {
                 match words::read_from(words) {
                     Ok(words) => words,
-                    Err(error) => {
-                        println!("{error}");
-                        exit(1);
+                    Err((words, error)) => {
+                        println!("{}", error.to_string().red());
+                        if words.len() > 0 {
+                            println!("{}", "There are still words left in the word list, playing".yellow());
+                            words
+                        }
+                        else {
+                            println!("{}", "No word list to play with".red());
+                            exit(1);
+                        }
                     }
                 }
             } else { 
@@ -101,5 +106,4 @@ fn main() {
 
         // End screen
     }
-    */
 }
