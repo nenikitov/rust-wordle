@@ -12,7 +12,7 @@ mod tests {
                 String::from("those"),
                 String::from("geese")
             ],
-            String::from("those")
+            "those"
         );
 
         assert_eq!(&[
@@ -33,7 +33,7 @@ mod tests {
                 String::from("dread"),
                 String::from("added")
             ],
-            String::from("dread")
+            "dread"
         );
 
         assert_eq!(&[

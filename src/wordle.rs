@@ -1,6 +1,11 @@
-use std::{fmt::Display, iter::repeat};
+use std::{
+    fmt::Display,
+    iter::repeat
+};
 
 use rand::seq::SliceRandom;
+
+
 
 #[derive(Clone)]
 #[derive(Debug)]
@@ -46,20 +51,21 @@ impl WordleGame {
         Self { words, answer: word }
     }
 
-    pub fn new_with_answer(words: Vec<String>, answer: String) -> Self {
-        if !words.contains(&answer) {
+    #[allow(dead_code)]
+    pub fn new_with_answer(words: Vec<String>, answer: &str) -> Self {
+        if !words.contains(&answer.to_string()) {
             panic!("Word list should contain the target word");
         }
         else {
-            Self { words, answer }
+            Self { words, answer: answer.to_string() }
         }
     }
 
-    pub fn guess(&self, guess: &String) -> Result<Vec<LetterScore>, InvalidWord> {
+    pub fn guess(&self, guess: &str) -> Result<Vec<LetterScore>, InvalidWord> {
         if guess.len() != self.answer.len() {
             Err(InvalidWord::DifferentLength)
         }
-        else if !self.words.contains(guess) {
+        else if !self.words.contains(&guess.to_string()) {
             Err(InvalidWord::NotAWord)
         }
         else {
