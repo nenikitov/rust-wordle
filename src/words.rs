@@ -1,10 +1,5 @@
 use std::{
-    fs::File,
-    io::{
-        BufReader,
-        BufRead,
-        self
-    },
+    fs,
     fmt::{
         Display
     },
@@ -97,48 +92,46 @@ impl Display for WordError {
 
 
 pub fn default_words() -> Words {
-    include_str!("../res/word_list.txt").split("\n").map(|s| s.into()).collect()
+    include_str!("../res/word_list.txt").lines().map(str::to_owned).collect()
 }
 
-pub fn read_from(file_name: &str) -> Result<Words, (Words, WordListError)> {
-    if let Ok(file) = File::open(file_name) {
-        let reader = BufReader::new(file);
-        let words: Vec<String> = reader.lines()
-            .filter_map(io::Result::ok)
-            .collect();
-        if words.len() == 0 {
-            Err((vec![], WordListError::Empty))
-        }
-        else {
-            let words = &words.iter().map(|s| s.as_ref()).collect();
-            let words = validate_list(words);
-            match words {
-                Ok(words)
-                    => Ok(words),
-                Err((words, invalid))
-                    => Err((words, WordListError::InvalidWords { words: invalid }))
-            }
-        }
+pub fn read_from(path: &str) -> Result<Words, (Words, WordListError)> {
+    let words: Words = match fs::read_to_string(path) {
+        Ok(content) =>
+            content.lines().map(str::to_owned).collect(),
+        Err(_) =>
+            return Err((vec![], WordListError::NoFile))
+    };
+
+    if words.len() == 0 {
+        Err((vec![], WordListError::Empty))
     }
     else {
-        Err((vec![], WordListError::NoFile))
+        match validate_list(&words) {
+            Ok(words) =>
+                Ok(words),
+            Err((words, invalid)) =>
+                Err((words, WordListError::InvalidWords { words: invalid }))
+        }
     }
 }
 
 const WORD_RANGE: RangeInclusive<usize> = 3..=7;
 
 
-pub fn validate_list(words: &Vec<&str>) -> Result<Words, (Words, InvalidWords)> {
+pub fn validate_list<S>(words: &[S]) -> Result<Words, (Words, InvalidWords)>
+    where S: AsRef<str>
+{
     let mut valid: Words = Vec::new();
     let mut invalid: InvalidWords = Vec::new();
     for (pos, word) in words.iter().enumerate() {
-        match validate_word(&word) {
-            Ok(validated)
-                => valid.push(validated),
-            Err(errors)
-                => invalid.push(InvalidWord {
+        match validate_word(word.as_ref()) {
+            Ok(validated) =>
+                valid.push(validated),
+            Err(errors) =>
+                invalid.push(InvalidWord {
                     pos,
-                    word: word.to_string(),
+                    word: word.as_ref().to_string(),
                     errors
                 })
         }
@@ -153,10 +146,11 @@ pub fn validate_list(words: &Vec<&str>) -> Result<Words, (Words, InvalidWords)> 
 }
 
 
+
 pub fn validate_word(word: &str) -> Result<String, WordErrors> {
     let word = word.to_lowercase();
 
-    let mut errors: Vec<WordError> = Vec::new();
+    let mut errors: WordErrors = Vec::new();
 
     if !WORD_RANGE.contains(&word.len()) {
         errors.push(WordError::InvalidLength{
