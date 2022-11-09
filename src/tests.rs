@@ -7,7 +7,7 @@ mod tests {
 
     #[test]
     fn geese_test() {
-        let game = WordleGame::new_with_answer(
+        let mut game = WordleGame::new_with_answer(
             vec![
                 String::from("those"),
                 String::from("geese")
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn added_test() {
-        let game = WordleGame::new_with_answer(
+        let mut game = WordleGame::new_with_answer(
             vec![
                 String::from("dread"),
                 String::from("added")

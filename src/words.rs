@@ -21,17 +21,18 @@ pub struct InvalidWord {
 
 impl Display for InvalidWord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let errors = self.errors
+            .iter()
+            .map(
+                |e|
+                format!("    - {}", e)
+            ).collect::<Words>()
+            .join("\n");
         write!(
             f, "- '{}' at index {}:\n{}",
             self.word,
             self.pos,
-            self.errors
-                .iter()
-                .map(
-                    |e|
-                    format!("    - {}", e)
-                ).collect::<Words>()
-                .join("\n")
+            errors
         )
     }
 }
@@ -51,14 +52,14 @@ impl Display for WordListError {
         match self {
             Self::NoFile => write!(f, "File cannot be read/does not exist"),
             Self::Empty => write!(f, "Word list format is improperly formatted"),
-            Self::InvalidWords { words } => write!(
-                f, "Some words have errors:\n{}",
-                words
+            Self::InvalidWords { words } => {
+                let errors = words
                     .iter()
                     .map(InvalidWord::to_string)
                     .collect::<Words>()
-                    .join("\n")
-            )
+                    .join("\n");
+                write!(f, "Some words have errors:\n{}", errors)
+            }
         }
     }
 }

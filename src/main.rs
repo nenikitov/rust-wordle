@@ -7,8 +7,8 @@ mod tests;
 
 use std::{
     process::exit,
-    iter::repeat,
-    io
+    iter,
+    io, error
 };
 
 use colored::{
@@ -21,53 +21,56 @@ use args::Args;
 
 
 
-fn main() {
+fn main() -> Result<(), i32>{
     let args = Args::new();
 
     if args.help() {
         // Help screen
         println!("{}", Args::HELP_MESSAGE);
-        return;
+        return Ok(())
     }
     else {
         // Word screen
         // Word list
         let words =
-            if let Some(words) = args.word_list() {
-                match words::read_from(words) {
-                    Ok(words) => words,
-                    Err((words, error)) => {
-                        println!("{}", error.to_string().red());
+            if let Some(path) = args.word_list() {
+                match words::read_from(path) {
+                    Ok(words) =>
+                        words,
+                    Err((words, errors)) => {
+                        eprintln!("{}", errors.to_string().yellow());
                         if words.len() > 0 {
-                            println!("{}", "There are still words left in the word list, playing".yellow());
+                            print!("{}", "There are still words left in the word list, playing");
                             words
                         }
                         else {
-                            println!("{}", "No word list to play with".red());
-                            exit(1);
+                            eprintln!("{}", "No word list to play with".red());
+                            return Err(1);
                         }
                     }
                 }
-            } else { 
+            }
+            else {
                 words::default_words()
             };
+
         // Initialize game
-        let game = wordle::WordleGame::new(words);
+        let mut game = wordle::WordleGame::new(words);
         let mut score = game.guess_empty();
         let mut guess: String =
-            repeat("_")
+            iter::repeat("_")
             .take(score.len())
             .collect();
 
         //#region Welcome message
         println!(
             "=== Welcome to {}{}{}{}{}{} ===",
-            "R".green().on_black(),
-            "U".bright_black().on_black(),
-            "S".yellow().on_black(),
-            "T".bright_black().on_black(),
-            "L".green().on_black(),
-            "E".yellow().on_black(),
+            "R".on_black().green(),
+            "U".on_black().bright_black(),
+            "S".on_black().yellow(),
+            "T".on_black().bright_black(),
+            "L".on_black().green(),
+            "E".on_black().yellow()
         );
         //#endregion
 
@@ -75,15 +78,7 @@ fn main() {
         loop {
             // Print previous guess
             for (c, s) in guess.chars().zip(score.iter()) {
-                let colored =
-                    String::from(c)
-                    .on_black()
-                    .color(match s {
-                        wordle::LetterScore::Wrong => Color::BrightBlack,
-                        wordle::LetterScore::Present => Color::Yellow,
-                        wordle::LetterScore::Correct => Color::Green
-                    });
-                print!("{}", colored);
+                print_letter(c, &s);
             }
             println!();
             // Read input
@@ -105,5 +100,17 @@ fn main() {
         //#endregion
 
         // End screen
+    }
+
+    fn print_letter(c: char, score: &wordle::LetterScore) {
+        let colored =
+            String::from(c)
+            .on_black()
+            .color(match score {
+                wordle::LetterScore::Wrong => Color::BrightBlack,
+                wordle::LetterScore::Present => Color::Yellow,
+                wordle::LetterScore::Correct => Color::Green
+            });
+        print!("{}", colored);
     }
 }

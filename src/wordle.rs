@@ -1,15 +1,17 @@
 use std::{
     fmt::Display,
-    iter::repeat
+    iter
 };
 
 use rand::seq::SliceRandom;
 
 
 
-#[derive(Clone)]
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(
+    Debug,
+    Clone, Copy,
+    PartialEq, PartialOrd
+)]
 pub enum LetterScore {
     Wrong,
     Present,
@@ -33,35 +35,41 @@ impl Display for InvalidWord {
 }
 
 
+
 #[derive(Debug)]
 pub struct WordleGame {
     words: Vec<String>,
-    answer: String
+    answer: String,
+    lives: usize,
+    guesses: [LetterScore; 26]
 }
 
 impl WordleGame {
+    pub fn new_with_answer(words: Vec<String>, answer: &str) -> Self {
+        if !words.contains(&answer.to_string()) {
+            panic!("Word {answer} is not in the given word list");
+        }
+
+        Self {
+            words,
+            answer: answer.to_string(),
+            lives: answer.len(),
+            guesses: [LetterScore::Wrong; 26]
+        }
+    }
+
     pub fn new(words: Vec<String>) -> Self {
-        let word: String =
+        let answer: String =
             if let Some(value) = words.choose(&mut rand::thread_rng()) {
                 value.clone()
             }
             else {
                 String::from("demo")
             };
-        Self { words, answer: word }
+        Self::new_with_answer(words, &answer)
     }
 
-    #[allow(dead_code)]
-    pub fn new_with_answer(words: Vec<String>, answer: &str) -> Self {
-        if !words.contains(&answer.to_string()) {
-            panic!("Word list should contain the target word");
-        }
-        else {
-            Self { words, answer: answer.to_string() }
-        }
-    }
-
-    pub fn guess(&self, guess: &str) -> Result<Vec<LetterScore>, InvalidWord> {
+    pub fn guess(&mut self, guess: &str) -> Result<Vec<LetterScore>, InvalidWord> {
         if guess.len() != self.answer.len() {
             Err(InvalidWord::DifferentLength)
         }
@@ -71,7 +79,10 @@ impl WordleGame {
         else {
             let mut answer = self.answer.clone();
             // Initialize all wrong
-            let mut score: Vec<LetterScore> = repeat(LetterScore::Wrong).take(guess.len()).collect();
+            let mut score: Vec<LetterScore> =
+                iter::repeat(LetterScore::Wrong)
+                .take(guess.len())
+                .collect();
             // Find the letter that are correct
             //for (letter_guess, letter_word) in guess.chars().zip(word.chars()) {}
             for i in 0..answer.len() {
@@ -98,9 +109,35 @@ impl WordleGame {
     }
 
     pub fn guess_empty(&self) -> Vec<LetterScore> {
-        self.answer
-            .chars()
-            .map(|_| LetterScore::Wrong)
+        iter::repeat(LetterScore::Wrong)
+            .take(self.answer.len())
             .collect()
+    }
+
+
+    pub fn known_guesses(&self, letters: &str) -> Vec<(char, LetterScore)> {
+        letters
+            .chars()
+            .map(
+                |c|
+                (c, self.guess_at_index(c).to_owned())
+            ).collect()
+    }
+
+    fn guess_at_index(&self, char: char) -> LetterScore {
+        if !char.is_alphabetic() {
+            panic!("Character {char} is not alphabetical")
+        }
+
+        self.guesses[char as usize - 'a' as usize]
+    }
+    fn set_guess_at_index(&mut self, char: char, score: LetterScore) {
+        if !char.is_alphabetic() {
+            panic!("Character {char} is not alphabetical")
+        }
+
+        if self.guess_at_index(char) < score {
+            self.guesses[char as usize - 'a' as usize] = score;
+        }
     }
 }
