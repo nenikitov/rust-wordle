@@ -16,7 +16,7 @@ use tui::{
     Frame,
     Terminal,
 };
-use crate::wordle;
+use crate::wordle::{self, LetterScore};
 
 
 #[derive(
@@ -62,7 +62,7 @@ impl App {
                 (
                     wordle::LetterScore::Wrong,
                     Style {
-                        fg: Some(Color::DarkGray),
+                        fg: Some(Color::Blue),
                         bg: Some(Color::Black),
                         add_modifier: Modifier::BOLD | Modifier::UNDERLINED,
                         sub_modifier: Modifier::empty()
@@ -88,41 +88,6 @@ impl App {
                 )
             ].iter().cloned().collect()
         }
-    }
-
-    fn get_style(&self, score: wordle::LetterScore) -> Style {
-        *self.styles.get(&score).unwrap()
-    }
-
-    pub fn submit_input(&mut self) {
-        if self.state == AppState::InProgress {
-            let score = self.game.guess(self.guess.as_str());
-            match score {
-                Ok(score) => {
-                    if let Some(_) = score.iter().filter(|&s| *s != wordle::LetterScore::Correct).next() {
-                        self.state = AppState::End(AppEndState::Won);
-                    }
-                    else if self.game.lives() == 0 {
-                        self.state = AppState::End(AppEndState::Lost);
-                    }
-                    self.tries.push((self.guess.clone(), score));
-                    self.error.clear();
-                }
-                Err(error) => {
-                    self.guess.clear();
-                    self.error = error.to_string();
-                }
-            }
-        }
-    }
-
-
-    pub fn add_to_input(&mut self, char: char) {
-        self.guess.push(char);
-    }
-
-    pub fn remove_from_input(&mut self) {
-        self.guess.pop();
     }
 
     pub fn update(&mut self) {
@@ -154,14 +119,17 @@ impl App {
     pub fn render<B: Backend>(&self, f: &mut Frame<B>) {
         let size = f.size();
 
-        let title = Spans::from(vec![
-            Span::styled("R", self.get_style(wordle::LetterScore::Correct)),
-            Span::styled("U", self.get_style(wordle::LetterScore::Wrong)),
-            Span::styled("S", self.get_style(wordle::LetterScore::Present)),
-            Span::styled("T", self.get_style(wordle::LetterScore::Wrong)),
-            Span::styled("L", self.get_style(wordle::LetterScore::Correct)),
-            Span::styled("E", self.get_style(wordle::LetterScore::Wrong))
-        ]);
+        let title = self.color_letters(
+            "RUSTLE",
+            &vec![
+                wordle::LetterScore::Correct,
+                wordle::LetterScore::Wrong,
+                wordle::LetterScore::Present,
+                wordle::LetterScore::Wrong,
+                wordle::LetterScore::Correct,
+                wordle::LetterScore::Wrong
+            ]
+        );
 
         let main_box = Block::default()
             .borders(Borders::ALL)
@@ -171,25 +139,79 @@ impl App {
 
         f.render_widget(main_box, size);
 
-        let items = [
-            ListItem::new("Item 1"),
-            ListItem::new("Item 2"),
-            ListItem::new("Item 3")
-        ];
+        let mut items: Vec<ListItem> =
+            self.tries.iter()
+            .map(|t|
+                ListItem::new(self.color_letters(&t.0, &t.1)
+            ))
+            .collect();
+        items.push(ListItem::new(self.guess.clone()));
+
         let tries = List::new(items)
-            .block(Block::default().title("List").borders(Borders::ALL))
+            .block(Block::default().title("").borders(Borders::NONE))
             .style(Style::default().fg(Color::White));
 
         f.render_widget(tries, Rect {
-            x: 1,
+            x: 2,
             y: 1,
             width: size.width - 2,
-            height: (size.height - 2)
+            height: size.height - 2
         });
     }
 
     pub fn state(&self) -> AppState {
         self.state
+    }
+
+    fn color_letters(&self, word: &str, score: &Vec<LetterScore>) -> Spans {
+        Spans::from(
+            word.chars().zip(score.iter())
+                .map(|(char, score)|
+                    // Color each letter
+                    Span::styled(
+                        char.to_string(),
+                        self.get_score_style(score)
+                    )
+                )
+                .collect::<Vec<Span>>()
+        )
+    }
+
+    fn get_score_style(&self, score: &wordle::LetterScore) -> Style {
+        *self.styles.get(score).unwrap()
+    }
+
+    fn add_to_input(&mut self, char: char) {
+        self.guess.push(char);
+    }
+
+    fn remove_from_input(&mut self) {
+        self.guess.pop();
+    }
+
+    fn submit_input(&mut self) {
+        if self.state == AppState::InProgress {
+            let score = self.game.guess(self.guess.as_str());
+            match score {
+                Ok(score) => {
+                    /*
+                    if let Some(_) = score.iter().filter(|&s| *s != wordle::LetterScore::Correct).next() {
+                        self.state = AppState::End(AppEndState::Won);
+                    }
+                    else if self.game.lives() == 0 {
+                        self.state = AppState::End(AppEndState::Lost);
+                    }
+                    */
+                    self.tries.push((self.guess.clone(), score));
+                    self.guess.clear();
+                    self.error.clear();
+                }
+                Err(error) => {
+                    self.guess.clear();
+                    self.error = error.to_string();
+                }
+            }
+        }
     }
 }
 
