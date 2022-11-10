@@ -1,26 +1,75 @@
 mod args;
+mod tests;
+mod ui;
 mod wordle;
 mod words;
-mod tests;
 
 
 
-use std::{
-    process::exit,
-    iter,
-    io, error
-};
+use std::{iter, io, thread, time::Duration};
 
-use colored::{
-    Colorize,
-    Color
-};
+use colored::{Colorize};
+use tui::{backend::CrosstermBackend};
 
 use args::Args;
 
 
 
+fn main() -> Result<(), i32> {
+    let args = Args::new();
 
+    if args.help() {
+        // Help screen
+        println!("{}", Args::HELP_MESSAGE);
+        return Ok(())
+    }
+    else {
+        // Get words
+        let words =
+            if let Some(path) = args.word_list() {
+                match words::read_from(path) {
+                    Ok(words) =>
+                        words,
+                    Err((words, errors)) => {
+                        eprintln!("{}", errors.to_string().yellow());
+                        if words.len() > 0 {
+                            println!("{}", "There are still words left in the word list, playing");
+                            words
+                        }
+                        else {
+                            eprintln!("{}", "No word list to play with".red());
+                            return Err(1);
+                        }
+                    }
+                }
+            }
+            else {
+                words::default_words()
+            };
+
+        let mut app = ui::App::new(
+            wordle::WordleGame::new(words)
+        );
+
+        let mut terminal = if let Ok(terminal) = ui::start_ui(CrosstermBackend::new(io::stdout())) {
+            terminal
+        } else {
+            eprintln!("{}", "Can't initialize TUI session".red());
+            return Err(1);
+        };
+
+        while app.state() == ui::AppState::InProgress {
+            terminal.draw(|f| app.render(f)).unwrap();
+            app.update();
+        }
+
+        ui::end_ui(terminal).unwrap();
+
+        Ok(())
+    }
+}
+
+/*
 fn main() -> Result<(), i32>{
     let args = Args::new();
 
@@ -114,3 +163,4 @@ fn main() -> Result<(), i32>{
         print!("{}", colored);
     }
 }
+*/

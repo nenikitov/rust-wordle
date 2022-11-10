@@ -10,7 +10,8 @@ use rand::seq::SliceRandom;
 #[derive(
     Debug,
     Clone, Copy,
-    PartialEq, PartialOrd
+    PartialEq, PartialOrd, Eq,
+    Hash
 )]
 pub enum LetterScore {
     Wrong,
@@ -103,6 +104,7 @@ impl WordleGame {
                     answer = answer.replacen(char_guess, ":", 1);
                 }
             }
+            self.lives -= 1;
 
             Ok(score)
         }
@@ -139,5 +141,9 @@ impl WordleGame {
         if self.guess_at_index(char) < score {
             self.guesses[char as usize - 'a' as usize] = score;
         }
+    }
+
+    pub fn lives(&self) -> usize {
+        self.lives
     }
 }
