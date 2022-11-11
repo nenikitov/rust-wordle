@@ -5,14 +5,14 @@ use crossterm::{
 };
 use std::{
     io::{self, Write},
-    collections::HashMap
+    iter
 };
 use tui::{
     backend::Backend,
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, List, ListItem},
+    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
     Frame,
     Terminal,
 };
@@ -41,13 +41,133 @@ pub enum AppState {
 }
 
 
+
+pub trait Drawable {
+    fn render<B: Backend>(&self, f: &mut Frame<B>);
+}
+
+
+
+struct LetterBoxStyle {
+    background: Color,
+    borders: Borders
+}
+impl From<LetterScore> for LetterBoxStyle {
+    fn from(score: LetterScore) -> Self {
+        match score {
+            LetterScore::Unknown =>
+                Self {
+                    background: Color::DarkGray,
+                    borders: Borders::BOTTOM
+                },
+            LetterScore::Wrong =>
+                Self {
+                    background: Color::Black,
+                    borders: Borders::NONE
+                },
+            LetterScore::Present =>
+                Self {
+                    background: Color::Yellow,
+                    borders: Borders::LEFT | Borders::RIGHT
+                },
+            LetterScore::Correct =>
+                Self {
+                    background: Color::Green,
+                    borders: Borders::ALL
+                }
+        }
+    }
+}
+impl LetterBoxStyle {
+    pub fn to_styles(&self) -> (Style, Borders) {
+        (
+            Style {
+                fg: Some(Color::White),
+                bg: Some(self.background),
+                add_modifier: Modifier::BOLD,
+                sub_modifier: Modifier::empty()
+            },
+            self.borders
+        )
+    }
+}
+
+
+
+struct LetterBox {
+    pos: (u16, u16),
+    char: char,
+    style: (Style, Borders)
+}
+impl LetterBox {
+    pub fn new(pos: (u16, u16), char: char, score: LetterScore) -> Self {
+        Self {
+            pos,
+            char,
+            style: LetterBoxStyle::from(score).to_styles()
+        }
+    }
+}
+impl Drawable for LetterBox {
+    fn render<B: Backend>(&self, f: &mut Frame<B>) {
+        let block = Block::default()
+            .style(self.style.0)
+            .borders(self.style.1)
+            .border_type(BorderType::Thick);
+        f.render_widget(
+            block,
+            Rect {
+                x: self.pos.0,
+                y: self.pos.1,
+                width: 5,
+                height: 3
+            }
+        );
+        let paragraph = Paragraph::new(self.char.to_uppercase().to_string())
+            .style(self.style.0);
+        f.render_widget(
+            paragraph,
+            Rect {
+                x: self.pos.0 + 2,
+                y: self.pos.1 + 1,
+                width: 1,
+                height: 1
+            }
+        )
+    }
+}
+
+
+
+
 pub struct App {
     game: wordle::WordleGame,
     guess: String,
     error: String,
     tries: Vec<(String, Vec<wordle::LetterScore>)>,
     state: AppState,
-    styles: HashMap<wordle::LetterScore, Style>
+}
+
+impl Drawable for App {
+    fn render<B: Backend>(&self, f: &mut Frame<B>) {
+        let size = f.size();
+
+        // Main box
+        let main_box = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("RUSTLE")
+            .title_alignment(Alignment::Center);
+        f.render_widget(main_box, size);
+
+        LetterBox::new((3, 3), 'w', LetterScore::Unknown).render(f);
+        LetterBox::new((9, 3), 'o', LetterScore::Wrong).render(f);
+        LetterBox::new((15, 3), 'r', LetterScore::Present).render(f);
+        LetterBox::new((21, 3), 'd', LetterScore::Correct).render(f);
+        LetterBox::new((27, 3), 'l', LetterScore::Present).render(f);
+        LetterBox::new((33, 3), 'e', LetterScore::Unknown).render(f);
+    }
+
 }
 
 impl App {
@@ -58,35 +178,6 @@ impl App {
             error: "".to_string(),
             tries: Vec::new(),
             state: AppState::InProgress,
-            styles: [
-                (
-                    wordle::LetterScore::Wrong,
-                    Style {
-                        fg: Some(Color::Blue),
-                        bg: Some(Color::Black),
-                        add_modifier: Modifier::BOLD | Modifier::UNDERLINED,
-                        sub_modifier: Modifier::empty()
-                    }
-                ),
-                (
-                    wordle::LetterScore::Present,
-                    Style {
-                        fg: Some(Color::LightYellow),
-                        bg: Some(Color::Black),
-                        add_modifier: Modifier::BOLD | Modifier::UNDERLINED,
-                        sub_modifier: Modifier::empty()
-                    }
-                ),
-                (
-                    wordle::LetterScore::Correct,
-                    Style {
-                        fg: Some(Color::LightGreen),
-                        bg: Some(Color::Black),
-                        add_modifier: Modifier::BOLD | Modifier::UNDERLINED,
-                        sub_modifier: Modifier::empty()
-                    }
-                )
-            ].iter().cloned().collect()
         }
     }
 
@@ -116,69 +207,8 @@ impl App {
         }
     }
 
-    pub fn render<B: Backend>(&self, f: &mut Frame<B>) {
-        let size = f.size();
-
-        let title = self.color_letters(
-            "RUSTLE",
-            &vec![
-                wordle::LetterScore::Correct,
-                wordle::LetterScore::Wrong,
-                wordle::LetterScore::Present,
-                wordle::LetterScore::Wrong,
-                wordle::LetterScore::Correct,
-                wordle::LetterScore::Wrong
-            ]
-        );
-
-        let main_box = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .title(title)
-            .title_alignment(Alignment::Center);
-
-        f.render_widget(main_box, size);
-
-        let mut items: Vec<ListItem> =
-            self.tries.iter()
-            .map(|t|
-                ListItem::new(self.color_letters(&t.0, &t.1)
-            ))
-            .collect();
-        items.push(ListItem::new(self.guess.clone()));
-
-        let tries = List::new(items)
-            .block(Block::default().title("").borders(Borders::NONE))
-            .style(Style::default().fg(Color::White));
-
-        f.render_widget(tries, Rect {
-            x: 2,
-            y: 1,
-            width: size.width - 2,
-            height: size.height - 2
-        });
-    }
-
     pub fn state(&self) -> AppState {
         self.state
-    }
-
-    fn color_letters(&self, word: &str, score: &Vec<LetterScore>) -> Spans {
-        Spans::from(
-            word.chars().zip(score.iter())
-                .map(|(char, score)|
-                    // Color each letter
-                    Span::styled(
-                        char.to_string(),
-                        self.get_score_style(score)
-                    )
-                )
-                .collect::<Vec<Span>>()
-        )
-    }
-
-    fn get_score_style(&self, score: &wordle::LetterScore) -> Style {
-        *self.styles.get(score).unwrap()
     }
 
     fn add_to_input(&mut self, char: char) {

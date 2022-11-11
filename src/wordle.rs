@@ -14,6 +14,7 @@ use rand::seq::SliceRandom;
     Hash
 )]
 pub enum LetterScore {
+    Unknown,
     Wrong,
     Present,
     Correct
