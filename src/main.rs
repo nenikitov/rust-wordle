@@ -51,6 +51,7 @@ fn main() -> Result<(), i32> {
                 words::default_words()
             };
 
+        let words = words::default_words();
         let mut app = ui::App::new(
             wordle::WordleGame::new(words)
         );
@@ -62,13 +63,30 @@ fn main() -> Result<(), i32> {
             return Err(1);
         };
 
-        while app.state() == ui::AppState::InProgress {
+        loop {
             terminal.draw(|f| app.render(f)).unwrap();
             app.update();
+
+            match app.state() {
+                ui::AppState::InProgress =>
+                    continue,
+                ui::AppState::End(end_state) => {
+                    ui::end_ui(terminal).unwrap();
+                    match end_state {
+                        ui::AppEndState::Won | ui::AppEndState::Lost => {
+                            return Ok(());
+                        },
+                        ui::AppEndState::Close { forced } => {
+                            return if !forced {
+                                Ok(())
+                            }
+                            else {
+                                Err(130)
+                            }
+                        }
+                    }
+                }
+            }
         }
-
-        ui::end_ui(terminal).unwrap();
-
-        Ok(())
     }
 }

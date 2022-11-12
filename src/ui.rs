@@ -11,8 +11,7 @@ use tui::{
     backend::Backend,
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
+    widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
     Terminal,
 };
@@ -27,7 +26,7 @@ use crate::wordle::{self, LetterScore};
 pub enum AppEndState {
     Won,
     Lost,
-    Close
+    Close{forced: bool}
 }
 
 #[derive(
@@ -138,6 +137,25 @@ impl Drawable for LetterBox {
 }
 
 
+struct LetterBoxWord<'a> {
+    pos: (u16, u16),
+    word: &'a str,
+    scores: &'a [wordle::LetterScore]
+}
+impl Drawable for LetterBoxWord<'_> {
+    fn render<B: Backend>(&self, f: &mut Frame<B>) {
+        for i in 0..self.word.len() {
+            let pos_x: u16 = self.pos.0 + (i as u16) * 7;
+            LetterBox::new(
+                (pos_x, self.pos.1),
+                self.word.chars().nth(i).unwrap(),
+                *self.scores.iter().nth(i).unwrap()
+            ).render(f);
+        }
+    }
+}
+
+
 
 
 pub struct App {
@@ -160,14 +178,57 @@ impl Drawable for App {
             .title_alignment(Alignment::Center);
         f.render_widget(main_box, size);
 
-        LetterBox::new((3, 3), 'w', LetterScore::Unknown).render(f);
-        LetterBox::new((9, 3), 'o', LetterScore::Wrong).render(f);
-        LetterBox::new((15, 3), 'r', LetterScore::Present).render(f);
-        LetterBox::new((21, 3), 'd', LetterScore::Correct).render(f);
-        LetterBox::new((27, 3), 'l', LetterScore::Present).render(f);
-        LetterBox::new((33, 3), 'e', LetterScore::Unknown).render(f);
-    }
+        // Tries
+        // Current guess
+        let guess_empty_scores = self.game.guess_empty();
+        let word_length = guess_empty_scores.len();
+        let guess_padded: String =
+            (0..word_length)
+                .map(|i| self.guess.chars().nth(i).unwrap_or(' ')).collect();
+        let guess_scores: Vec<wordle::LetterScore> =
+            guess_padded.chars()
+                .map(
+                    |c|
+                    if c.is_alphabetic() {
+                        LetterScore::Unknown
+                    }
+                    else {
+                        LetterScore::Wrong
+                    }
+                ).collect();
+        // Future guesses
+        let guess_empty = str::repeat(" ", word_length);
+        // All guesses
+        let current = (guess_padded, guess_scores);
+        let future = (guess_empty, guess_empty_scores);
+        let all_guesses =
+            self.tries.iter()
+                .chain(iter::repeat(&current).take(1))
+                .chain(iter::repeat(&future).take(self.game.lives()));
 
+        for (i, (word, scores)) in all_guesses.enumerate() {
+            let pos_y = 4 + (i as u16) * 4;
+            LetterBoxWord {
+                pos: (4, pos_y),
+                word,
+                scores
+            }.render(f);
+        }
+
+        // Keyboard
+        for (i, row) in ["qwertyuiop", "asdfghjkl", "zxcvbnm"].iter().enumerate() {
+            let scores  = self.game.known_guesses(row);
+            let pos_x = 4 + (word_length as u16) * 7 + 3 * (i as u16);
+            let pos_y = 4 + (i as u16) * 4;
+
+            LetterBoxWord {
+                pos: (pos_x, pos_y),
+                word: row,
+                scores: &scores
+            }.render(f);
+        }
+        // Current guess
+    }
 }
 
 impl App {
@@ -190,7 +251,7 @@ impl App {
                             self.submit_input(),
                         KeyCode::Char(char) => {
                             if key.modifiers == KeyModifiers::CONTROL && char == 'c' {
-                                self.state = AppState::End(AppEndState::Close)
+                                self.state = AppState::End(AppEndState::Close { forced: true })
                             }
                             else {
                                 self.add_to_input(char)
@@ -199,7 +260,7 @@ impl App {
                         KeyCode::Backspace =>
                             self.remove_from_input(),
                         KeyCode::Esc =>
-                            self.state = AppState::End(AppEndState::Close),
+                            self.state = AppState::End(AppEndState::Close { forced: false }),
                         _ => ()
                     }
                 }
@@ -212,7 +273,9 @@ impl App {
     }
 
     fn add_to_input(&mut self, char: char) {
-        self.guess.push(char);
+        if (self.guess.len() < self.game.guess_empty().len()) {
+            self.guess.push(char);
+        }
     }
 
     fn remove_from_input(&mut self) {

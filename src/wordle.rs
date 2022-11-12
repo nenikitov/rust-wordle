@@ -56,7 +56,7 @@ impl WordleGame {
             words,
             answer: answer.to_string(),
             lives: answer.len(),
-            guesses: [LetterScore::Wrong; 26]
+            guesses: [LetterScore::Unknown; 26]
         }
     }
 
@@ -86,14 +86,16 @@ impl WordleGame {
                 .take(guess.len())
                 .collect();
             // Find the letter that are correct
-            //for (letter_guess, letter_word) in guess.chars().zip(word.chars()) {}
             for i in 0..answer.len() {
                 let char_answer = answer.chars().nth(i).unwrap();
                 let char_guess = guess.chars().nth(i).unwrap();
+                // All wrong by default
+                self.set_guess_at_index(char_guess, LetterScore::Wrong);
                 if char_guess == char_answer {
                     // Character matched, score and replace to not score again
                     score[i] = LetterScore::Correct;
                     answer = answer.replacen(char_guess, ":", 1);
+                    self.set_guess_at_index(char_guess, LetterScore::Correct);
                 }
             }
             // Find the letters that are present
@@ -103,6 +105,7 @@ impl WordleGame {
                     // Character matched, score and replace to not score again
                     score[i] = LetterScore::Present;
                     answer = answer.replacen(char_guess, ":", 1);
+                    self.set_guess_at_index(char_guess, LetterScore::Present);
                 }
             }
             self.lives -= 1;
@@ -112,18 +115,18 @@ impl WordleGame {
     }
 
     pub fn guess_empty(&self) -> Vec<LetterScore> {
-        iter::repeat(LetterScore::Wrong)
+        iter::repeat(LetterScore::Unknown)
             .take(self.answer.len())
             .collect()
     }
 
 
-    pub fn known_guesses(&self, letters: &str) -> Vec<(char, LetterScore)> {
+    pub fn known_guesses(&self, letters: &str) -> Vec<LetterScore> {
         letters
             .chars()
             .map(
                 |c|
-                (c, self.guess_at_index(c).to_owned())
+                self.guess_at_index(c).to_owned()
             ).collect()
     }
 
