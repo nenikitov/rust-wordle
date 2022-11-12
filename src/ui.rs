@@ -272,6 +272,17 @@ impl Drawable for App {
                     scores: &scores
                 }.render(f);
             }
+
+            // Error message
+            let error = Paragraph::new(self.error.clone())
+                .style(Style::default().fg(Color::Red))
+                .alignment(Alignment::Center);
+            f.render_widget(error, Rect {
+                x: 2,
+                y: size.height - 2 - keyboard_size.1 - 2,
+                width: size.width - 2,
+                height: 2
+            });
         }
         else {
             // Error message box
