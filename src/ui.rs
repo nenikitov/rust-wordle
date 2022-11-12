@@ -5,7 +5,7 @@ use crossterm::{
 };
 use std::{
     io::{self, Write},
-    iter
+    iter, vec
 };
 use tui::{
     backend::Backend,
@@ -13,7 +13,7 @@ use tui::{
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
-    Terminal,
+    Terminal, text::{Spans, Span},
 };
 use crate::wordle::{self, LetterScore};
 
@@ -201,6 +201,15 @@ impl Drawable for App {
     fn render<B: Backend>(&self, f: &mut Frame<B>) {
         let size = f.size();
 
+        let guess_empty_scores = self.game.guess_empty();
+        let word_length = guess_empty_scores.len();
+
+        let minimum_size = LetterBox::compute_size((
+            "qwertyuiop".len() as u16,
+            (word_length + 1 + 1 + 3) as u16
+        ));
+        let minimum_size = (minimum_size.0 + 4, minimum_size.1 + 4);
+
         // Main box
         let main_box = Block::default()
             .borders(Borders::ALL)
@@ -209,58 +218,84 @@ impl Drawable for App {
             .title_alignment(Alignment::Center);
         f.render_widget(main_box, size);
 
-        // Tries
-        // Current guess
-        let guess_empty_scores = self.game.guess_empty();
-        let word_length = guess_empty_scores.len();
-        let guess_padded: String =
-            (0..word_length)
-                .map(|i| self.guess.chars().nth(i).unwrap_or(' ')).collect();
-        let guess_scores: Vec<wordle::LetterScore> =
-            guess_padded.chars()
-                .map(
-                    |c|
-                    if c.is_alphabetic() {
-                        LetterScore::Unknown
-                    }
-                    else {
-                        LetterScore::Wrong
-                    }
-                ).collect();
-        // Future guesses
-        let guess_empty = str::repeat(" ", word_length);
-        // All guesses
-        let current = (guess_padded, guess_scores);
-        let future = (guess_empty, guess_empty_scores);
-        let all_guesses =
-            self.tries.iter()
-                .chain(iter::repeat(&current).take(1))
-                .chain(iter::repeat(&future).take(self.game.lives()));
+        if size.width >= minimum_size.0 && size.height >= minimum_size.1 {
+            // Enough size to draw the game
 
-        for (i, (word, scores)) in all_guesses.enumerate() {
-            LetterBoxWord {
-                pos: LetterBox::compute_new_pos((3, 3), (0, i as u16)),
-                word,
-                scores
-            }.render(f);
+            // Tries
+            // Current guess
+            let guess_padded: String =
+                (0..word_length)
+                    .map(|i| self.guess.chars().nth(i).unwrap_or(' ')).collect();
+            let guess_scores: Vec<wordle::LetterScore> =
+                guess_padded.chars()
+                    .map(
+                        |c|
+                        if c.is_alphabetic() {
+                            LetterScore::Unknown
+                        }
+                        else {
+                            LetterScore::Wrong
+                        }
+                    ).collect();
+            // Future guesses
+            let guess_empty = str::repeat(" ", word_length);
+            // All guesses
+            let current = (guess_padded, guess_scores);
+            let future = (guess_empty, guess_empty_scores);
+            let all_guesses =
+                self.tries.iter()
+                    .chain(iter::repeat(&current).take(1))
+                    .chain(iter::repeat(&future).take(self.game.lives()));
+            let guess_start_x = (size.width - LetterBox::compute_size((word_length as u16, 0)).0) / 2;
+            for (i, (word, scores)) in all_guesses.enumerate() {
+                LetterBoxWord {
+                    pos: LetterBox::compute_new_pos((guess_start_x, 2), (0, i as u16)),
+                    word,
+                    scores
+                }.render(f);
+            }
+
+            // Keyboard
+            let keyboard_size = LetterBox::compute_size(("qwertyuiop".len() as u16, 3));
+            for (i, row) in ["qwertyuiop", "asdfghjkl", "zxcvbnm"].iter().enumerate() {
+                let scores = self.game.known_guesses(row);
+                let pos_x =
+                    (size.width - keyboard_size.0) / 2
+                    + i as u16 * (LetterBox::SIZE_X - 1);
+                let pos_y =
+                    size.height - 2
+                    - LetterBox::compute_size((0, (3 - i) as u16)).1;
+
+                LetterBoxWord {
+                    pos: (pos_x, pos_y),
+                    word: row,
+                    scores: &scores
+                }.render(f);
+            }
         }
+        else {
+            // Error message box
+            let color_x = if size.width < minimum_size.0 { Color::LightRed } else { Color::LightGreen };
+            let color_y = if size.height < minimum_size.1 { Color::LightRed } else { Color::LightGreen };
 
-        // Keyboard
-        let keyboard_size = LetterBox::compute_size(("qwertyuiop".len() as u16, 3));
-        for (i, row) in ["qwertyuiop", "asdfghjkl", "zxcvbnm"].iter().enumerate() {
-            let scores = self.game.known_guesses(row);
-            let pos_x =
-                (size.width - keyboard_size.0) / 2
-                + i as u16 * 4;
-            let pos_y =
-                size.height - 2
-                - LetterBox::compute_size((0, (3 - i) as u16)).1;
+            let text = vec![
+                Spans::from(Span::raw("Terminal window is too small")),
+                Spans::from(vec![
+                    Span::raw("Width = "),
+                    Span::styled(format!("{}", size.width), Style::default().fg(color_x)),
+                    Span::raw(format!(" (needed {})", minimum_size.0)),
+                ]),
+                Spans::from(vec![
+                    Span::raw("Height = "),
+                    Span::styled(format!("{}", size.height), Style::default().fg(color_y)),
+                    Span::raw(format!(" (needed {})", minimum_size.1)),
+                ]),
+            ];
 
-            LetterBoxWord {
-                pos: (pos_x, pos_y),
-                word: row,
-                scores: &scores
-            }.render(f);
+            let paragraph = Paragraph::new(text)
+                .style(Style::default().bg(Color::Black))
+                .alignment(Alignment::Center);
+            f.render_widget(paragraph, size);
         }
     }
 }
