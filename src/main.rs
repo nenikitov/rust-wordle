@@ -51,7 +51,6 @@ fn main() -> Result<(), i32> {
                 words::default_words()
             };
 
-        let words = words::default_words();
         let mut app = ui::App::new(
             wordle::WordleGame::new(words)
         );

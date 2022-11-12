@@ -273,7 +273,7 @@ impl App {
     }
 
     fn add_to_input(&mut self, char: char) {
-        if (self.guess.len() < self.game.guess_empty().len()) {
+        if self.guess.len() < self.game.guess_empty().len() {
             self.guess.push(char);
         }
     }
