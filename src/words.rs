@@ -117,7 +117,7 @@ pub fn read_from(path: &str) -> Result<Words, (Words, WordListError)> {
     }
 }
 
-const WORD_RANGE: RangeInclusive<usize> = 3..=7;
+const WORD_RANGE: RangeInclusive<usize> = 4..=6;
 
 
 pub fn validate_list<S>(words: &[S]) -> Result<Words, (Words, InvalidWords)>

@@ -99,12 +99,44 @@ struct LetterBox {
     style: (Style, Borders)
 }
 impl LetterBox {
+    const SIZE_X: u16 = 5;
+    const SIZE_Y: u16 = 3;
+    const GAP_X: u16 = 2;
+    const GAP_Y: u16 = 1;
+
     pub fn new(pos: (u16, u16), char: char, score: LetterScore) -> Self {
         Self {
             pos,
             char,
             style: LetterBoxStyle::from(score).to_styles()
         }
+    }
+
+    pub fn compute_new_pos(pos: (u16, u16), offset: (u16, u16)) -> (u16, u16) {
+        let pos_x =
+            pos.0
+            + offset.0 * (Self::SIZE_X + Self::GAP_X);
+        let pos_y =
+            pos.1
+            + offset.1 * (Self::SIZE_Y + Self::GAP_Y);
+        return (pos_x, pos_y);
+    }
+    pub fn compute_size(count: (u16, u16)) -> (u16, u16) {
+        let size_x =
+            if count.0 > 0 {
+                (count.0 - 1) * (Self::SIZE_X + Self::GAP_X) + Self::SIZE_X
+            }
+            else {
+                0
+            };
+        let size_y =
+            if count.1 > 0 {
+                (count.1 - 1) * (Self::SIZE_Y + Self::GAP_Y) + Self::SIZE_Y
+            }
+            else {
+                0
+            };
+        (size_x, size_y)
     }
 }
 impl Drawable for LetterBox {
@@ -118,8 +150,8 @@ impl Drawable for LetterBox {
             Rect {
                 x: self.pos.0,
                 y: self.pos.1,
-                width: 5,
-                height: 3
+                width: Self::SIZE_X,
+                height: Self::SIZE_Y
             }
         );
         let paragraph = Paragraph::new(self.char.to_uppercase().to_string())
@@ -127,8 +159,8 @@ impl Drawable for LetterBox {
         f.render_widget(
             paragraph,
             Rect {
-                x: self.pos.0 + 2,
-                y: self.pos.1 + 1,
+                x: self.pos.0 + (Self::SIZE_X - 1) / 2,
+                y: self.pos.1 + (Self::SIZE_Y - 1) / 2,
                 width: 1,
                 height: 1
             }
@@ -145,9 +177,8 @@ struct LetterBoxWord<'a> {
 impl Drawable for LetterBoxWord<'_> {
     fn render<B: Backend>(&self, f: &mut Frame<B>) {
         for i in 0..self.word.len() {
-            let pos_x: u16 = self.pos.0 + (i as u16) * 7;
             LetterBox::new(
-                (pos_x, self.pos.1),
+                LetterBox::compute_new_pos(self.pos, (i as u16, 0)),
                 self.word.chars().nth(i).unwrap(),
                 *self.scores.iter().nth(i).unwrap()
             ).render(f);
@@ -207,19 +238,23 @@ impl Drawable for App {
                 .chain(iter::repeat(&future).take(self.game.lives()));
 
         for (i, (word, scores)) in all_guesses.enumerate() {
-            let pos_y = 4 + (i as u16) * 4;
             LetterBoxWord {
-                pos: (4, pos_y),
+                pos: LetterBox::compute_new_pos((3, 3), (0, i as u16)),
                 word,
                 scores
             }.render(f);
         }
 
         // Keyboard
+        let keyboard_size = LetterBox::compute_size(("qwertyuiop".len() as u16, 3));
         for (i, row) in ["qwertyuiop", "asdfghjkl", "zxcvbnm"].iter().enumerate() {
-            let scores  = self.game.known_guesses(row);
-            let pos_x = 4 + (word_length as u16) * 7 + 3 * (i as u16);
-            let pos_y = 4 + (i as u16) * 4;
+            let scores = self.game.known_guesses(row);
+            let pos_x =
+                (size.width - keyboard_size.0) / 2
+                + i as u16 * 4;
+            let pos_y =
+                size.height - 2
+                - LetterBox::compute_size((0, (3 - i) as u16)).1;
 
             LetterBoxWord {
                 pos: (pos_x, pos_y),
@@ -227,7 +262,6 @@ impl Drawable for App {
                 scores: &scores
             }.render(f);
         }
-        // Current guess
     }
 }
 
