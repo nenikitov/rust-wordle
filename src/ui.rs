@@ -330,7 +330,10 @@ impl App {
                         KeyCode::Enter =>
                             self.submit_input(),
                         KeyCode::Char(char) => {
-                            if key.modifiers == KeyModifiers::CONTROL && char == 'c' {
+                            if key.modifiers == KeyModifiers::CONTROL && char == 'w' {
+                                self.guess.clear();
+                            }
+                            else if key.modifiers == KeyModifiers::CONTROL && char == 'c' {
                                 self.state = AppState::End(AppEndState::Close { forced: true })
                             }
                             else {
